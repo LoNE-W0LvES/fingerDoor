@@ -1,0 +1,25 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.clang_complete
+.gcc-flags.json
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Build artifacts and binaries
+*.o
+*.a
+*.so
+*.bin
+*.elf
+*.hex
+
+# OS generated files
+Thumbs.db
+.DS_Store
+desktop.ini
