@@ -1,18 +1,21 @@
 #include "finger_scan.h"
+#include "admin_finger.h"
 
 void fingerprint_initialize() {
+  Serial2.begin(FINGERPRINT_BAUD, SERIAL_8N1, FINGERPRINT_RX_PIN, FINGERPRINT_TX_PIN);
   finger.begin(FINGERPRINT_BAUD);
-  delay(5);
-  if (finger.verifyPassword()) {
-    Serial.println(F("Found fingerprint sensor!"));
-  } else {
-    Serial.println(F("Did not find fingerprint sensor :("));
-    while (1) {
-      delay(1);
-    }
+  delay(100);
+
+  while (!finger.verifyPassword()) {
+    Serial.println(F("Fingerprint sensor not detected. Retrying..."));
+    showStatusScreen(F("Sensor Error"), F("Sensor Not Found!"), F("Check RX(16)/TX(17)"), F("Retrying in 3s..."));
+    delay(3000);
   }
 
-  Serial.println(F("Reading sensor parameters"));
+  Serial.println(F("Found fingerprint sensor!"));
+  showStatusScreen(F("Sensor Ready"), F("Sensor detected!"), F("Reading parameters..."), F(""));
+  delay(800);
+
   finger.getParameters();
   Serial.print(F("Status: 0x"));
   Serial.println(finger.status_reg, HEX);
@@ -36,7 +39,6 @@ uint8_t matchFingerprint() {
     case FINGERPRINT_OK:
       break;
     case FINGERPRINT_NOFINGER:
-      Serial.println(F("No finger detected"));
       return 0;
     case FINGERPRINT_PACKETRECIEVEERR:
       Serial.println(F("Communication error"));
@@ -49,44 +51,46 @@ uint8_t matchFingerprint() {
       return 0;
   }
 
+  showStatusScreen(F("Scanning..."), F("Analyzing print"), F("Verifying ID..."), F(""));
+
   p = finger.image2Tz();
   switch (p) {
     case FINGERPRINT_OK:
       break;
     case FINGERPRINT_IMAGEMESS:
       Serial.println(F("Image too messy"));
+      showStatusScreen(F("Scan Error"), F("Image messy"), F("Please try again"));
+      delay(1000);
       return 0;
     case FINGERPRINT_PACKETRECIEVEERR:
-      Serial.println(F("Communication error"));
-      return 0;
     case FINGERPRINT_FEATUREFAIL:
-      Serial.println(F("Could not find fingerprint features"));
-      return 0;
     case FINGERPRINT_INVALIDIMAGE:
-      Serial.println(F("Could not find fingerprint features"));
-      return 0;
     default:
-      Serial.println(F("Unknown error"));
+      Serial.println(F("Feature error"));
+      showStatusScreen(F("Scan Error"), F("Could not read"), F("Please try again"));
+      delay(1000);
       return 0;
   }
 
-  // OK converted!
   p = finger.fingerSearch();
   if (p == FINGERPRINT_OK) {
-    Serial.println(F("Found a print match!"));
-    Serial.print(F("Found ID #"));
+    Serial.print(F("Found print match! ID #"));
     Serial.print(finger.fingerID);
-    Serial.print(F(" with confidence of "));
+    Serial.print(F(" Confidence: "));
     Serial.println(finger.confidence);
-  } else if (p == FINGERPRINT_PACKETRECIEVEERR) {
-    Serial.println(F("Communication error"));
-    return 0;
+
+    bool isAdmin = isAdminID(finger.fingerID);
+    showAccessGranted(finger.fingerID, isAdmin);
+    unlockDoor(finger.fingerID, isAdmin);
+    return 1;
   } else if (p == FINGERPRINT_NOTFOUND) {
     Serial.println(F("Fingerprint not found"));
+    showAccessDenied();
     return 0;
   } else {
-    Serial.println(F("Unknown error"));
+    Serial.println(F("Search error"));
+    showStatusScreen(F("Scan Error"), F("Search failed"), F("Please try again"));
+    delay(1000);
     return 0;
   }
-  return 1;
 }
